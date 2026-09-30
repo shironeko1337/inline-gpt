@@ -1,0 +1,49 @@
+TextAnchor
+- node: TextNode
+- offset: number
+
+TextNode // this could be an text node in the tree of text nodes like <b> Bolded text </b> in "<p> Some paragraph <b> Bolded text </b> </p>"
+- responseContext: ResponseContext
+- relativeCSSSelector: string // this is relative to the message element, in case ChatGPT web UI is updated, we only have to change messageCSSSelector
+- relativeXPathSelector: string // as a fallback in case result of CSS Selector doesn't match the text
+
+ResponseContext
+- messageId: string
+- messageCSSSelector: string // for locating the full answer message element by message id
+
+HighlightedText(Serializable)
+- start: TextAnchor
+- end: TextAnchor
+- text: string // for verification if using CSS Highligh API, the selected text is the same as expected
+- messagebox: Messagebox
+
+SideQuestionRequest // use referencedText and template to get the prompt, and use responseMessageId to create the side conversation
+- referencedText: string // just duplicated text of highlightedText
+- template: QuestionTemplate
+- responseMessageId: string // message id duplicated when creating the messagebox from HighlightedText (TextAnchor -> TextNode -> ResponseContext -> messageId)
+
+SideQuestionResponse
+- status: 'pending' || 'fulfilled' || 'error' // ignore other states like steaming answer, only show full answer
+- content: string
+- responseId: string
+
+Messagebox
+- request: SideQuestionRequest
+- response: SideQuestionResponse
+
+Option(Serializable) // this are options configurable in the extension options page
+- highlightStyle: HighlightStyle
+- timeToShowMessage: number // milliseconds for how long mouse hovering the text would trigger the message box to show
+- chatGPTAPIKey:string // ChatGPT API Key
+- chatGPTModel: string // can be a constant for now
+- confirmRemoveHighlight: boolean // If remove highlighted text needs confirmation
+- templates: Template[] // common question templates
+
+QuestionTemplate:
+- templateText: string // the text that shows on the context menu
+- templateContent: string // string like "For <referenced text>, explain <question>, the answer should be as straightforward as possible. The question and answer should be based on the conversation context, but it is independent to the other following questions."
+
+HighlightStyle
+- backgroundColor: string
+- underline: boolean
+- opacity: number

@@ -1,0 +1,105 @@
+This is a chrome extension for chatGPT only now.
+
+Purpose: It helps user create a forked(side) conversation from the current answer to have the question immediately answered without scrolling up and down which breaks the thinking process.
+
+CUJ1:
+- User has a conversation which creates a long answer.
+- There is a term which confuses the user.
+- User just wants to know what it means, and user expects it to be a short one line answer, and don't want to do things like quote the sentence that contains the term and ask about that term and maybe add additional prompts to make it short and goes back to the original answer where the term appears.
+- User selects the text, there is a context menu with an option 'Ask ChatGPT' which is native to ChatGPT web, and several other customized options like 'What is this?', 'Source of truth?' which is defined by this extension.
+- Since user wants to know the meaning of the term, he clicks 'What is this?'
+- A popup message box shows the answer, the popup is like a tooltip, which shows on mouseover and can be copied
+  - the popup message box is consisted of the question(gray background rounded span in one line) and the answer
+  - initially has a max width and height of 40rem, can be resized.
+  - can be closed by clicking anywhere outside
+  - has a X close button on top right
+  - has a garbage bin button on top left, on clicking it, it pops up a browser native alert to ask if delete the current message box.
+  - at the time the popup message box is created, the message locator together with the side conversation is saved
+- once user close the message box, it can be opened again by hovering on the highlighted text
+  - whether the current mouse position is contained in a highlighted area can be determined by this API
+  ```
+  document.addEventListener("mousemove", (event) => {
+    const x = event.clientX;
+    const y = event.clientY;
+
+    const hits = CSS.highlights.highlightsFromPoint(x, y);
+    // find if each hit is in the stored highlighted area, if there are multiple highlighted areas, show the first of them (can be ordered by create time DESC)
+  });
+  ```
+- Theoretically user can have overlapped highlighted areas, but it doesn't make too much sense for the purpose of this extension, and in that case, there isn't a runtime error since we are can just show an arbitrary one
+
+CUJ2:
+- User wants to change the settings of this extension
+- User opens the options page by right click the extension and select 'Options' where it opens a new web page
+- Settings are saved immediately when changed.
+
+Other tech details:
+- Option page should allow user to CRUD question templates, and one default template is provided
+- Option page uses heroui, tailwindcss and react
+- chrome.storage is used for local storage
+- The extension uses manifest V3
+
+Questions before implementation (each has a proposed default in [brackets]; just write "ok" or your answer under each):
+
+Q1. Where do the custom options ('What is this?', ...) appear?
+    ChatGPT shows a floating "Ask ChatGPT" button when you select text in an answer. Should the extension inject its template buttons into that same floating popup (DOM injection, can break when ChatGPT changes its UI), or use Chrome's native right-click menu (chrome.contextMenus, stable but it's a right click, not the floating popup)?
+    [Inject into the floating popup, next to 'Ask ChatGPT'. If that popup can't be found, fall back to our own small floating button bar shown near the selection.]
+    A:
+    - Shows below What is this, render it using similar styles as "What is this?"
+
+Q2. How is the side question answered?
+    The Option has chatGPTAPIKey, so I assume the extension calls the OpenAI API directly (not ChatGPT web's internal backend) and nothing shows up in the user's ChatGPT history.
+    [OpenAI Chat Completions API with the user's key, non-streaming, called from the background service worker.]
+    A:
+    - Yes, I didn't dig very deep into how to generate/use the ChatGPT API Key, but make it a separate module for creating a side chat, maybe find it in openai API doc.
+
+Q3. What conversation context is sent with the side question?
+    "The question and answer should be based on the conversation context" - the API has no access to the ChatGPT web conversation, so the extension must scrape it from the page.
+    [Send every user/assistant message in the DOM up to and including the answer that holds the highlight (responseMessageId), then the templated question. Later messages are not sent.]
+    A:
+    - Just create a side conversation using the response id, we don't need to specify which conversation context it is.
+
+Q4. Template placeholder syntax and "<question>".
+    The example has both <referenced text> and <question>. Where does <question> come from? Does the user type something for some templates?
+    [Placeholders are {{text}} and {{question}}. If a template contains {{question}}, a small input box appears after the menu click so the user can type the question; otherwise it's sent right away.]
+    A:
+    - <question> is the question template text which is exactly the text in the context menu and also the question tempalte ID. Referenced text is the highlighted text, e.g. For space needle, explain "What is this"...
+
+
+Q5. Default template(s) and default model.
+    [Templates: "What is this?" -> "In the context of this conversation, explain \"{{text}}\" in one or two short sentences. Be as straightforward as possible. Treat this as an independent side question." and "Source of truth?" -> "What is the source / evidence for \"{{text}}\"? Answer briefly, with links if available." Model: "gpt-4o-mini" (a constant).]
+    A: Just "What is this"
+
+Q6. Delete confirmation vs. confirmRemoveHighlight option.
+    features.txt says the bin button always shows a native confirm; the Option has confirmRemoveHighlight. I assume the option turns that confirm on/off.
+    [confirm() only when confirmRemoveHighlight is true (default true).]
+    A: Yes, defaults to true
+
+Q7. Storage scope and key.
+    [chrome.storage.local for everything, including the API key (not synced). Highlights stored per ChatGPT conversation id (from the /c/<id> URL) and restored when the page / conversation loads or the user switches conversations.]
+    A: for everything
+
+Q8. Message box position and hover behavior.
+    [Placed below the end of the highlight (above it if there isn't room), stays open after the mouse leaves; closed only by X / click outside / bin. Hover re-opens it after timeToShowMessage ms (default 500). Only one box open at a time.]
+    A: ideally it detects where the message box will be visible, but if that is too complex, show it at bottom
+
+Q9. Pending / error states.
+    [Pending: box shows the question plus a spinner. Error: shows the error text and a "Retry" button. Failed boxes are still saved so they can be retried later.]
+    A: on error, just show the error message and a retry text button
+
+Q10. Selections spanning multiple messages or user messages.
+    [Only allowed inside a single assistant answer; otherwise our buttons don't appear.]
+    A: Yes, the message id of start and end in the highlightedText must be the same
+
+Q11. Browser support.
+    CSS.highlights.highlightsFromPoint() is only available in recent Chrome (about 140+).
+    [Use it when available, fall back to comparing the mouse point with each highlight Range's getClientRects() on older Chrome.]
+    A: Yes
+
+Q12. Tooling and content-script UI.
+    [Vite + TypeScript + React, built to /dist which you load unpacked. Options page: React + HeroUI + Tailwind. Message box: plain DOM inside a Shadow DOM (keeps it light and isolated from ChatGPT's CSS). Sites: chatgpt.com and chat.openai.com.]
+    A: Yes
+
+Q13. Answer rendering.
+    [Render the answer as Markdown (bold, lists, code, links) with text selectable/copyable, plus a small "copy" button.]
+    A: Yes
