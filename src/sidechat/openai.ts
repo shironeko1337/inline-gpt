@@ -2,8 +2,9 @@
 // API keys are created at https://platform.openai.com/api-keys and billed separately from a ChatGPT subscription.
 //
 // ChatGPT web message ids are not OpenAI API response ids, so the side conversation cannot be forked from the
-// web conversation directly. Instead the web conversation up to the answer (responseMessageId) is sent as input,
-// and the returned response id can be used as `previousResponseId` to continue the side conversation later.
+// web conversation directly. Instead the web conversation up to the answer (responseMessageId) is sent as input.
+// Each side question is a single request: responses are not stored by OpenAI (`store: false`), and the answer is
+// kept only in the extension's local storage.
 
 import type { ContextMessage } from '../shared/types';
 
@@ -20,12 +21,11 @@ export interface SideChatInput {
   prompt: string;
   /** ChatGPT web conversation up to and including the answer the question is about. */
   context: ContextMessage[];
-  /** Continue an existing side conversation instead of sending `context` again. */
-  previousResponseId?: string;
 }
 
 export interface SideChatOutput {
   content: string;
+  /** Id of the API response, kept for reference only (it can't be continued because it isn't stored). */
   responseId: string;
 }
 
@@ -40,9 +40,7 @@ export async function createSideChat(input: SideChatInput): Promise<SideChatOutp
     throw new Error('OpenAI API key is not set. Add it on the extension options page.');
   }
 
-  const messages = input.previousResponseId
-    ? [{ role: 'user', content: input.prompt }]
-    : [...input.context.map((m) => ({ role: m.role, content: m.text })), { role: 'user', content: input.prompt }];
+  const messages = [...input.context.map((m) => ({ role: m.role, content: m.text })), { role: 'user', content: input.prompt }];
 
   const res = await fetch(RESPONSES_URL, {
     method: 'POST',
@@ -54,8 +52,7 @@ export async function createSideChat(input: SideChatInput): Promise<SideChatOutp
       model: input.model,
       instructions: INSTRUCTIONS,
       input: messages,
-      previous_response_id: input.previousResponseId,
-      store: true,
+      store: false,
     }),
   });
 

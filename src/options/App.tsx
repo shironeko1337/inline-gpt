@@ -66,7 +66,7 @@ function OptionsForm({ initial }: { initial: Options }) {
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Inline ChatGPT</h1>
+          <h1 className="text-2xl font-semibold">Inline Question for ChatGPT</h1>
           <p className="text-sm text-muted">Settings are saved automatically.</p>
         </div>
         {savedAt && <span className="text-xs text-muted">Saved {new Date(savedAt).toLocaleTimeString()}</span>}

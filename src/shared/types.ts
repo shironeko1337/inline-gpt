@@ -46,7 +46,7 @@ export interface SideQuestionResponse {
   status: SideQuestionStatus;
   /** Answer markdown when fulfilled, error message when error. */
   content: string;
-  /** OpenAI response id of the side conversation (usable as previous_response_id). */
+  /** OpenAI API response id, for reference only (responses aren't stored by OpenAI, so it can't be continued). */
   responseId: string;
 }
 
